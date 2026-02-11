@@ -1,0 +1,717 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 23% 95%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 90%;
+    --sidebar-accent-foreground: 215 25% 27%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 221 83% 53%;
+
+    /* SWOR Brand Tokens */
+    --swor-navy: 220 27% 15%;
+    --swor-bone: 40 33% 94%;
+    --swor-terracotta: 17 36% 57%;
+    --swor-sage: 105 13% 58%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+
+    --sidebar-background: 215 28% 17%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 27%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 25% 27%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+/* ===========================================
+   SWOR ELDERS-FIRST READABILITY SYSTEM
+   =========================================== */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* Base font size increased for readability */
+    font-size: 16px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans dark:bg-background dark:text-foreground;
+    /* Increased line-height for comfortable reading */
+    line-height: 1.7;
+    /* Prevent long hyphen strings */
+    hyphens: none;
+    -webkit-hyphens: none;
+    -ms-hyphens: none;
+  }
+
+  /* Mobile: Increase base font size for elders-first readability */
+  @media (max-width: 768px) {
+    html {
+      font-size: 18px;
+    }
+    
+    body {
+      line-height: 1.8;
+    }
+  }
+
+  pre, code {
+    @apply font-mono;
+  }
+
+  /* Paragraph spacing for comfortable reading */
+  p {
+    margin-bottom: 1.25em;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* ===========================================
+   SWOR TYPOGRAPHY SYSTEM
+   =========================================== */
+
+.font-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+/* Documentary editorial voice - calm, measured headings */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+  margin-bottom: 0.75em;
+}
+
+/* Long-form text on light backgrounds only */
+/* Long-form text on light backgrounds only */
+.swor-longform {
+  color: rgba(26, 35, 50, 0.8);
+  line-height: 1.8;
+  font-size: 1.0625rem;
+}
+
+.swor-longform p {
+  margin-bottom: 1.5em;
+}
+
+.swor-longform p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .swor-longform {
+    font-size: 1.125rem;
+    line-height: 1.9;
+  }
+  
+  .swor-longform p {
+    margin-bottom: 1.75em;
+  }
+}
+
+
+/* ===========================================
+   SWOR SECTION RHYTHM & SPACING
+   =========================================== */
+
+.swor-section {
+  @apply py-16 md:py-20 lg:py-24;
+}
+
+.swor-section-tight {
+  @apply py-12 md:py-16;
+}
+
+.swor-section-spacious {
+  @apply py-20 md:py-28 lg:py-32;
+}
+
+/* Consistent vertical spacing between sections */
+.swor-stack > * + * {
+  margin-top: 2rem;
+}
+
+@media (min-width: 768px) {
+  .swor-stack > * + * {
+    margin-top: 2.5rem;
+  }
+}
+
+/* Mobile: Avoid overly tight stacking */
+@media (max-width: 768px) {
+  .swor-section {
+    @apply py-12;
+  }
+  
+  .swor-stack > * + * {
+    margin-top: 1.5rem;
+  }
+}
+
+/* ===========================================
+   SWOR BUTTON & LINK SYSTEM
+   High-contrast, clearly tappable on mobile
+   =========================================== */
+
+.swor-btn {
+  @apply inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#B8826D];
+  /* Minimum touch target for accessibility */
+  min-height: 48px;
+  padding: 0.75rem 1.5rem;
+}
+
+.swor-btn-primary {
+  @apply swor-btn bg-[#B8826D] text-[#F5F1E8] hover:bg-[#a67460];
+}
+
+.swor-btn-secondary {
+  @apply swor-btn bg-[#1A2332] text-[#F5F1E8] hover:bg-[#2a3342];
+}
+
+.swor-btn-outline {
+  @apply swor-btn border-2 border-[#1A2332] text-[#1A2332] hover:bg-[#1A2332] hover:text-[#F5F1E8];
+}
+
+.swor-btn-ghost {
+  @apply swor-btn text-[#1A2332] hover:bg-[#1A2332]/5;
+}
+
+/* High-contrast links */
+.swor-link {
+  @apply text-[#B8826D] underline underline-offset-2 hover:text-[#a67460] transition-colors;
+  @apply focus:outline-none focus:ring-2 focus:ring-[#B8826D] focus:ring-offset-2;
+}
+
+/* Mobile: Larger touch targets */
+@media (max-width: 768px) {
+  .swor-btn {
+    min-height: 52px;
+    padding: 0.875rem 1.75rem;
+    font-size: 1rem;
+  }
+}
+
+/* ===========================================
+   SWOR CTA BEHAVIOUR
+   Invitational language only
+   =========================================== */
+
+.swor-cta-explore,
+.swor-cta-learn-more,
+.swor-cta-view-profile,
+.swor-cta-join,
+.swor-cta-read,
+.swor-cta-share,
+.swor-cta-contribute,
+.swor-cta-invite {
+  @apply capitalize;
+}
+
+.swor-cta {
+  @apply transition-colors duration-200;
+}
+
+/* ===========================================
+   SWOR LABEL STYLE
+   Short labels only, no ALL CAPS for long text
+   =========================================== */
+
+.swor-label {
+  @apply uppercase tracking-widest text-xs font-medium;
+}
+
+/* ===========================================
+   SWOR CARD SYSTEM
+   =========================================== */
+
+.swor-card {
+  @apply bg-white rounded-xl shadow-sm transition-all duration-200;
+  @apply hover:shadow-md;
+}
+
+.swor-card-interactive {
+  @apply swor-card cursor-pointer;
+  @apply hover:translate-y-[-2px];
+}
+
+/* ===========================================
+   SWOR FORM SYSTEM
+   =========================================== */
+
+.swor-input {
+  @apply w-full px-4 py-3 rounded-lg border border-[#1A2332]/20;
+  @apply bg-white text-[#1A2332] placeholder-[#1A2332]/40;
+  @apply focus:outline-none focus:border-[#B8826D] focus:ring-2 focus:ring-[#B8826D]/20;
+  @apply transition-all duration-200;
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.swor-textarea {
+  @apply swor-input resize-none;
+  min-height: 120px;
+}
+
+.swor-label-text {
+  @apply block text-sm font-medium text-[#1A2332]/80 mb-2;
+}
+
+/* Mobile: Larger form inputs */
+@media (max-width: 768px) {
+  .swor-input,
+  .swor-textarea {
+    min-height: 52px;
+    font-size: 1.0625rem;
+    padding: 0.875rem 1rem;
+  }
+}
+
+/* ===========================================
+   SWOR REASSURANCE MICROCOPY
+   =========================================== */
+
+.swor-reassurance {
+  @apply text-sm text-[#1A2332]/60 bg-[#F5F1E8] rounded-lg p-4;
+  @apply border border-[#1A2332]/10;
+}
+
+.swor-reassurance-pinned {
+  @apply swor-reassurance sticky top-24 z-10;
+}
+
+/* ===========================================
+   NO HYPE MECHANICS
+   Remove any urgency or growth language styling
+   =========================================== */
+
+/* No counters, no trending labels, no urgency banners */
+.swor-no-metrics {
+  /* Intentionally empty - placeholder for removing metrics */
+}
+
+/* ===========================================
+   MARKDOWN & CONTENT STYLING
+   =========================================== */
+
+.markdown-editor {
+  @apply font-mono text-base leading-relaxed;
+}
+
+.markdown-preview {
+  @apply prose max-w-none prose-blue dark:prose-invert;
+}
+
+.markdown-preview pre {
+  @apply bg-secondary p-4 rounded-md overflow-x-auto;
+}
+
+.markdown-preview code {
+  @apply text-sm font-mono text-primary;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  @apply font-sans font-semibold text-foreground;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  @apply my-4 ml-6;
+}
+
+/* ===========================================
+   SWOR JOURNEY PAGE LAYOUT
+   =========================================== */
+
+.swor-journey-hero {
+  @apply bg-[#1A2332] pt-24 pb-16;
+}
+
+.swor-journey-content {
+  @apply bg-[#F5F1E8] py-16;
+}
+
+.swor-journey-section {
+  @apply py-12 md:py-16;
+}
+
+/* ===========================================
+   SWOR SHARING COMPONENT
+   =========================================== */
+
+.swor-share-button {
+  @apply inline-flex items-center justify-center w-12 h-12 rounded-full;
+  @apply bg-[#1A2332]/5 hover:bg-[#1A2332]/10 transition-colors;
+  @apply text-[#1A2332]/70 hover:text-[#1A2332];
+}
+
+/* ===========================================
+   ACCESSIBILITY ENHANCEMENTS
+   =========================================== */
+
+/* UX.1b: Focus visible only for keyboard navigation, not mouse/touch */
+/* Remove default focus outline for all elements */
+:focus {
+  outline: none;
+}
+
+/* Show focus outline only for keyboard navigation */
+:focus-visible {
+  outline: 2px solid rgba(184, 130, 109, 0.9);
+  outline-offset: 3px;
+}
+
+/* Ensure programmatically focused elements (like page-top-focus) don't show outlines */
+[tabindex="-1"]:focus,
+[tabindex="-1"]:focus-visible {
+  outline: none !important;
+}
+
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .swor-btn-primary {
+    @apply border-2 border-[#1A2332];
+  }
+  
+  .swor-link {
+    @apply underline decoration-2;
+  }
+}
+
+/* ===========================================
+   SWOR STATUS BANNERS
+   Clear but not loud status indicators
+   =========================================== */
+
+.swor-banner {
+  @apply rounded-lg p-4 text-sm;
+}
+
+.swor-banner-draft {
+  @apply swor-banner bg-[#1A2332]/5 border border-[#1A2332]/10 text-[#1A2332]/70;
+}
+
+.swor-banner-submitted {
+  @apply swor-banner bg-[#B8826D]/10 border border-[#B8826D]/20 text-[#B8826D];
+}
+
+.swor-banner-approved {
+  @apply swor-banner bg-[#8B9D83]/10 border border-[#8B9D83]/20 text-[#8B9D83];
+}
+
+.swor-banner-needs-changes {
+  @apply swor-banner bg-amber-50 border border-amber-200 text-amber-800;
+}
+
+/* ===========================================
+   SWOR TAGS & CHIPS
+   Consistent styling across the site
+   =========================================== */
+
+.swor-chip {
+  @apply inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium;
+  @apply transition-colors duration-200;
+}
+
+.swor-chip-primary {
+  @apply swor-chip bg-[#B8826D]/10 text-[#B8826D];
+}
+
+.swor-chip-secondary {
+  @apply swor-chip bg-[#8B9D83]/10 text-[#8B9D83];
+}
+
+.swor-chip-neutral {
+  @apply swor-chip bg-[#1A2332]/5 text-[#1A2332]/70;
+}
+
+.swor-chip-interactive {
+  @apply swor-chip cursor-pointer hover:bg-[#B8826D]/20;
+}
+
+/* ===========================================
+   SWOR MAX TEXT WIDTH
+   Comfortable reading on desktop
+   =========================================== */
+
+.swor-prose {
+  max-width: 65ch;
+}
+
+@media (min-width: 768px) {
+  .swor-prose-wide {
+    max-width: 75ch;
+  }
+}
+
+/* ===========================================
+   SWOR MOBILE SECTION SPACING
+   Increased breathing room on mobile
+   =========================================== */
+
+@media (max-width: 768px) {
+  .swor-section-mobile {
+    @apply py-6;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .swor-card-mobile {
+    @apply p-4;
+  }
+  
+  /* Stack everything on mobile */
+  .swor-stack-mobile {
+    @apply flex flex-col space-y-4;
+  }
+}
+
+/* ===========================================
+   SWOR TOUCH TARGETS
+   Minimum 44px for accessibility
+   =========================================== */
+
+.swor-touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 768px) {
+  .swor-touch-target-mobile {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* ===========================================
+   SWOR TYPOGRAPHY CLEANUP
+   No em-dashes, consistent punctuation
+   =========================================== */
+
+/* Replace em-dashes with en-dashes or hyphens */
+.swor-text-clean {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure no orphans in headings */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* ===========================================
+   SWOR HELP GUIDE STYLING
+   Private versioned guides
+   =========================================== */
+
+.swor-guide {
+  @apply bg-white rounded-xl border border-[#1A2332]/10 p-6;
+}
+
+.swor-guide-header {
+  @apply flex items-center justify-between mb-6 pb-4 border-b border-[#1A2332]/10;
+}
+
+.swor-guide-version {
+  @apply text-xs text-[#1A2332]/40 font-mono;
+}
+
+.swor-guide-content {
+  @apply text-[#1A2332]/80 leading-relaxed;
+}
+
+.swor-guide-content h2 {
+  @apply font-serif text-xl text-[#1A2332] mt-8 mb-4 first:mt-0;
+}
+
+.swor-guide-content h3 {
+  @apply font-medium text-[#1A2332] mt-6 mb-3;
+}
+
+.swor-guide-content ul {
+  @apply space-y-2 ml-4;
+}
+
+.swor-guide-content li {
+  @apply relative pl-4;
+}
+
+.swor-guide-content li::before {
+  content: '';
+  @apply absolute left-0 top-2 w-1.5 h-1.5 rounded-full bg-[#8B9D83];
+}
+
+/* ===========================================
+   SWOR BREADCRUMB
+   Clear return paths
+   =========================================== */
+
+.swor-breadcrumb {
+  @apply flex items-center text-sm text-[#1A2332]/60;
+}
+
+.swor-breadcrumb-item {
+  @apply hover:text-[#1A2332] transition-colors;
+}
+
+.swor-breadcrumb-separator {
+  @apply mx-2 text-[#1A2332]/30;
+}
+
+.swor-breadcrumb-current {
+  @apply text-[#1A2332] font-medium;
+}
+
+/* ===========================================
+   SWOR TABLES TO CARDS (MOBILE)
+   Career records etc. become cards
+   =========================================== */
+
+@media (max-width: 768px) {
+  .swor-table-to-cards {
+    display: block;
+  }
+  
+  .swor-table-to-cards thead {
+    display: none;
+  }
+  
+  .swor-table-to-cards tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .swor-table-to-cards tr {
+    display: block;
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    border: 1px solid rgba(26, 35, 50, 0.1);
+  }
+  
+  .swor-table-to-cards td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border: none;
+  }
+  
+  .swor-table-to-cards td::before {
+    content: attr(data-label);
+    font-weight: 500;
+    color: rgba(26, 35, 50, 0.5);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* ===========================================
+   SWOR LAZY LOADING PLACEHOLDER
+   Smooth image loading
+   =========================================== */
+
+.swor-image-placeholder {
+  @apply bg-[#1A2332]/5 animate-pulse;
+}
+
+img[loading="lazy"] {
+  @apply transition-opacity duration-300;
+}
+
+img[loading="lazy"]:not([src]) {
+  @apply opacity-0;
+}
