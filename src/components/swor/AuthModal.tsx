@@ -630,10 +630,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
                   <Globe className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-amber-900">
-                      The swor.rugby email domain is being set up
+                      The smallworldofrugby.com email domain is being verified
                     </h3>
                     <p className="text-sm text-amber-800 leading-relaxed">
-                      Sign-in emails from <strong>swor.rugby</strong> require DNS records to be configured with the domain registrar. This is a one-time setup.
+                      Sign-in emails from <strong>smallworldofrugby.com</strong> require DNS records to be configured with the domain registrar. This is a one-time setup.
                     </p>
                   </div>
                 </div>
@@ -648,7 +648,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
                       <span className="text-xs font-bold text-[#8B9D83]">1</span>
                     </div>
                     <p className="text-sm text-[#1A2332]/70 leading-relaxed">
-                      The swor.rugby domain has been registered with our email service (Resend).
+                      The smallworldofrugby.com domain has been registered with our email service (Resend).
                     </p>
                   </div>
                   <div className="flex items-start space-x-3">
@@ -656,7 +656,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
                       <span className="text-xs font-bold text-amber-600">2</span>
                     </div>
                     <p className="text-sm text-[#1A2332]/70 leading-relaxed">
-                      <strong>DNS records</strong> (SPF, DKIM, DMARC) need to be added to the swor.rugby domain to verify ownership and enable email delivery.
+                      <strong>DNS records</strong> (SPF, DKIM, DMARC) need to be added to the smallworldofrugby.com domain to verify ownership and enable email delivery.
                     </p>
                   </div>
                   <div className="flex items-start space-x-3">
@@ -669,6 +669,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
                   </div>
                 </div>
               </div>
+
+
 
               {/* Account owner auto-retry section */}
               {isAccountOwnerEmail && (

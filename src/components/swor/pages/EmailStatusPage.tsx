@@ -269,7 +269,8 @@ const EmailStatusPage: React.FC<EmailStatusPageProps> = ({ onBack, onNavigate })
 
           <div className="p-5 sm:p-6">
             <p className="text-sm text-[#1A2332]/70 leading-relaxed mb-6">
-              To send emails from your own domain (e.g. hello@swor.rugby), you need to verify the domain in Resend and add DNS records to your domain provider.
+              To send emails from your own domain (e.g. hello@smallworldofrugby.com), you need to verify the domain in Resend and add DNS records to your domain provider.
+
             </p>
 
             <ol className="space-y-6">
@@ -297,8 +298,10 @@ const EmailStatusPage: React.FC<EmailStatusPageProps> = ({ onBack, onNavigate })
                 <span className="w-7 h-7 bg-[#B8826D]/10 rounded-full flex items-center justify-center text-sm font-medium text-[#B8826D] flex-shrink-0 mt-0.5">2</span>
                 <div>
                   <p className="text-sm font-medium text-[#1A2332]">Add your domain</p>
+
                   <p className="text-sm text-[#1A2332]/60 mt-1 leading-relaxed">
-                    Click "Add Domain" and enter your domain (e.g. swor.rugby). Resend will provide DNS records you need to add.
+                    Click "Add Domain" and enter your domain (e.g. smallworldofrugby.com). Resend will provide DNS records you need to add.
+
                   </p>
                 </div>
               </li>
@@ -313,8 +316,9 @@ const EmailStatusPage: React.FC<EmailStatusPageProps> = ({ onBack, onNavigate })
                   <div className="mt-3 space-y-2">
                     {[
                       { type: 'SPF', desc: 'TXT record for sender authentication', example: 'v=spf1 include:amazonses.com ~all' },
-                      { type: 'DKIM', desc: 'CNAME records for email signing (usually 3 records)', example: 'resend._domainkey.swor.rugby' },
+                      { type: 'DKIM', desc: 'CNAME records for email signing (usually 3 records)', example: 'resend._domainkey.smallworldofrugby.com' },
                       { type: 'DMARC', desc: 'TXT record for email policy (optional but recommended)', example: 'v=DMARC1; p=none;' },
+
                     ].map((record) => (
                       <div key={record.type} className="bg-[#F5F1E8] rounded-lg p-3">
                         <div className="flex items-center justify-between">
@@ -353,8 +357,9 @@ const EmailStatusPage: React.FC<EmailStatusPageProps> = ({ onBack, onNavigate })
                 <div>
                   <p className="text-sm font-medium text-[#1A2332]">Set sender address</p>
                   <p className="text-sm text-[#1A2332]/60 mt-1 leading-relaxed">
-                    Once verified, emails will be sent from the configured sender address (e.g. noreply@swor.rugby or hello@swor.rugby). The sender address is set in the edge function code.
+                    Once verified, emails will be sent from the configured sender address (e.g. noreply@smallworldofrugby.com or hello@smallworldofrugby.com). The sender address is set in the edge function code.
                   </p>
+
                 </div>
               </li>
             </ol>

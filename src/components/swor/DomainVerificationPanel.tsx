@@ -249,8 +249,9 @@ const DomainVerificationPanel: React.FC = () => {
           <div className="text-left">
             <h3 className="font-medium text-[#1A2332] text-sm">Email Domain Verification</h3>
             <p className="text-xs text-[#1A2332]/50 mt-0.5">
-              {domainInfo?.configured_domain || 'swor.rugby'} &mdash; {domainInfo?.from_address || 'Loading...'}
+              {domainInfo?.configured_domain || 'smallworldofrugby.com'} &mdash; {domainInfo?.from_address || 'Loading...'}
             </p>
+
           </div>
         </div>
         <div className="flex items-center space-x-3">
