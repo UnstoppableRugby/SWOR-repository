@@ -1,13 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Read database credentials from environment variables (set via .env or hosting provider)
-// Fallbacks are provided for local development convenience but should be overridden in production
-const supabaseUrl = import.meta.env.VITE_database_URL
-  || 'https://lbweciluypxgmqcckfhu.databasepad.com';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseKey = import.meta.env.VITE_database_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImE5MjlmZGIzLTg5YmYtNDFlNS1iNGIxLWIwMmMwYmZkZDc3NiJ9.eyJwcm9qZWN0SWQiOiJsYndlY2lsdXlweGdtcWNja2ZodSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzE2NjkzLCJleHAiOjIwODUwNzY2OTMsImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Hz8CWkSEVa0jkT7AhydWBvt04ZUdGBgEBrA7niFaqp4';
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase env vars: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
+}
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-export { supabase };
+export const supabase = createClient(supabaseUrl, supabaseKey);
