@@ -274,7 +274,7 @@ const ArchiveUploadSection: React.FC<ArchiveUploadSectionProps> = ({
     const parts: string[] = [];
     if (typeFilter === 'image') parts.push('Images');
     if (typeFilter === 'document') parts.push('Documents');
-    if (statusFilter !== 'all') parts.push(statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1));
+    if (statusFilter !== 'all') parts.push(statusFilter ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : '');
     if (debouncedSearch) parts.push(`"${debouncedSearch}"`);
     return parts.join(' · ');
   };
@@ -1115,7 +1115,7 @@ const ArchiveUploadSection: React.FC<ArchiveUploadSectionProps> = ({
                           : 'text-[#1A2332]/60 hover:text-[#1A2332]'
                       }`}
                     >
-                      {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                      {status === 'all' ? 'All' : (status ? status.charAt(0).toUpperCase() + status.slice(1) : '')}
                     </button>
                   ))}
                 </div>

@@ -570,7 +570,7 @@ const MyJourneysPage: React.FC<MyJourneysPageProps> = ({ onBack, onNavigate }) =
                       {journey.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
                       {journey.status === 'draft' && <FileText className="w-3 h-3 mr-1" />}
                       {journey.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
-                      {journey.status.charAt(0).toUpperCase() + journey.status.slice(1)}
+                      {journey.status ? journey.status.charAt(0).toUpperCase() + journey.status.slice(1) : ''}
                     </span>
                   </div>
 
