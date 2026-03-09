@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 
 export interface UserJourney {
   id: string;
@@ -61,9 +61,9 @@ export function useMyJourneys(): UseMyJourneysReturn {
   const clearError = useCallback(() => setError(null), []);
 
   const invokeFunction = async (action: string, payload: any) => {
-    const { data, error: fnError } = await supabase.functions.invoke('swor-contributions', {
-      body: { action, payload }
-    });
+    const { data, error: fnError } = await invokeEdgeFunction('swor-contributions', {
+      action, payload
+    }, 15000);
 
     if (fnError) {
       throw new Error(fnError.message || 'Edge function error');
@@ -75,6 +75,7 @@ export function useMyJourneys(): UseMyJourneysReturn {
 
     return data;
   };
+
 
   const fetchJourneys = useCallback(async (userId: string, userEmail?: string) => {
     setLoading(true);

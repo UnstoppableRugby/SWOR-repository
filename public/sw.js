@@ -1,42 +1,34 @@
-// SWOR Service Worker - Offline Support
-const CACHE_NAME = 'swor-cache-v1';
+// SWOR Service Worker v5 — 2026-03-08T19:09:00Z
+// CHANGED: bumped cache version to v5, network-first for JS, aggressive cache clearing
+const CACHE_NAME = 'swor-cache-v5';
+
 const OFFLINE_URL = '/offline.html';
 
 // Essential shell assets to cache
 const SHELL_ASSETS = [
   '/',
-  '/index.html',
   '/offline.html',
-  '/placeholder.svg',
-  '/robots.txt'
-];
-
-// Key pages to cache (these are SPA routes, so we cache index.html)
-const KEY_PAGES = [
-  '/',
-  '/home',
-  '/how-it-works',
-  '/help',
-  '/help-guides',
-  '/contact',
-  '/join',
-  '/contribute'
+  '/placeholder.svg'
 ];
 
 // Install event - cache essential assets
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker v5');
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching shell assets');
       return cache.addAll(SHELL_ASSETS);
     })
   );
-  // Activate immediately
+  // Activate immediately — don't wait for old SW to stop
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - DELETE ALL old caches aggressively
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker v5');
+
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -49,11 +41,31 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Take control immediately
+  // Take control of all clients immediately
   self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Known static file extensions — these are NOT SPA routes
+const STATIC_EXTENSIONS = [
+  '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
+  '.woff', '.woff2', '.ttf', '.eot', '.json', '.xml', '.txt',
+  '.webp', '.avif', '.mp4', '.webm', '.map'
+];
+
+// JS files get special treatment — network first, no stale cache
+const JS_EXTENSIONS = ['.js', '.mjs'];
+
+function isStaticAsset(url) {
+  const pathname = url.pathname.toLowerCase();
+  return STATIC_EXTENSIONS.some(ext => pathname.endsWith(ext));
+}
+
+function isJSAsset(url) {
+  const pathname = url.pathname.toLowerCase();
+  return JS_EXTENSIONS.some(ext => pathname.endsWith(ext));
+}
+
+// Fetch event - SPA-aware routing
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -68,62 +80,89 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For navigation requests (HTML pages)
+  // ── Navigation requests (HTML pages / SPA routes) ──
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone and cache the response
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
-          });
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+            return response;
+          }
+
+          // Server returned 404 for SPA route — serve cached index.html
+          if (response.status === 404 && !isStaticAsset(url) && !isJSAsset(url)) {
+            console.log('[SW] 404 for navigation to', url.pathname, '— serving cached index.html');
+            return caches.match('/').then((cachedIndex) => {
+              return cachedIndex || response;
+            });
+          }
+
           return response;
         })
         .catch(() => {
-          // Return cached version or offline page
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Return offline page for navigation requests
-            return caches.match(OFFLINE_URL);
+          // Network failure — serve from cache
+          return caches.match('/')
+            .then((cachedIndex) => {
+              if (cachedIndex) return cachedIndex;
+              return caches.match(OFFLINE_URL);
+            });
+        })
+    );
+    return;
+  }
+
+  // ── JS files: NETWORK FIRST (never serve stale JS) ──
+  if (isJSAsset(url)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Only use cache as offline fallback for JS
+          return caches.match(request).then((cached) => {
+            return cached || new Response('', { status: 404 });
           });
         })
     );
     return;
   }
 
-  // For static assets (JS, CSS, images)
-  if (
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.jpg') ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.woff2') ||
-    url.pathname.endsWith('.woff')
-  ) {
+  // ── Other static assets (CSS, images, fonts): stale-while-revalidate ──
+  if (isStaticAsset(url)) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Return cached version and update cache in background
+          // Return cached, update in background
           fetch(request).then((response) => {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, response);
-            });
+            if (response.ok) {
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, response);
+              });
+            }
           }).catch(() => {});
           return cachedResponse;
         }
         // Fetch and cache
         return fetch(request).then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
-          });
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
           return response;
         }).catch(() => {
-          // Return nothing for missing assets
           return new Response('', { status: 404 });
         });
       })
@@ -131,21 +170,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For API requests and other resources - network first
+  // ── API requests and other resources — network only ──
   event.respondWith(
     fetch(request)
-      .then((response) => {
-        return response;
-      })
-      .catch(() => {
-        return caches.match(request);
-      })
+      .then((response) => response)
+      .catch(() => caches.match(request))
   );
 });
 
 // Listen for messages from the main thread
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Received SKIP_WAITING message, activating now');
     self.skipWaiting();
   }
 });

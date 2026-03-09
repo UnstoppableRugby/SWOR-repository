@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SWOR - Signing In...</title>
+    <style>
+      /* Minimal loading state while redirecting */
+      body { margin: 0; background: #F5F1E8; font-family: 'Inter', system-ui, sans-serif; }
+      .loader {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+      .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid rgba(26,35,50,0.15);
+        border-top-color: #B8826D;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .loader p { color: #1A2332; opacity: 0.6; font-size: 0.875rem; }
+    </style>
+    <script>
+      /**
+       * SPA Fallback for /auth/callback
+       * 
+       * STRATEGY: Redirect to the ROOT URL with all query parameters preserved.
+       * The React app's AppContext.processAuthAtRoot() handles auth params at /.
+       * 
+       * This file exists as a safety net for:
+       * - Old magic links that point to /auth/callback?auth_token=TOKEN
+       * - Supabase PKCE redirects to /auth/callback?code=CODE (from old config)
+       * - Any bookmark or cached link to /auth/callback
+       * 
+       * The redirect preserves all query params so the root-level auth handler
+       * can process them identically to how /auth/callback would have.
+       */
+      (function() {
+        // Preserve query string and hash fragment
+        var search = window.location.search || '';
+        var hash = window.location.hash || '';
+        
+        // Build the root URL with all params
+        var rootUrl = '/' + search + hash;
+        
+        // Use replace() so the /auth/callback URL doesn't stay in browser history
+        window.location.replace(rootUrl);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Signing you in...</p>
+    </div>
+  </body>
+</html>

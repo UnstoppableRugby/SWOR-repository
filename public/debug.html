@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SWOR Debug — Deployment Check</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; line-height: 1.6; }
+    h1 { color: #38bdf8; margin-bottom: 1rem; }
+    h2 { color: #94a3b8; margin: 1.5rem 0 0.5rem; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .pass { color: #4ade80; font-weight: bold; }
+    .fail { color: #f87171; font-weight: bold; }
+    .warn { color: #fbbf24; font-weight: bold; }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; background: #0f172a; padding: 0.2em 0.4em; border-radius: 3px; }
+    pre { background: #0f172a; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
+    #results { margin-top: 1rem; }
+    .test-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155; }
+    .test-row:last-child { border-bottom: none; }
+    button { background: #3b82f6; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 1rem; margin: 0.5rem 0.5rem 0.5rem 0; }
+    button:hover { background: #2563eb; }
+    button.danger { background: #ef4444; }
+    button.danger:hover { background: #dc2626; }
+    .timestamp { color: #64748b; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>SWOR Deployment Diagnostic</h1>
+  <p class="timestamp">Debug page created: 2026-03-08T19:09:00Z (v2.7)</p>
+  <p style="margin-top:0.5rem">If you can see this page, static files in <span class="mono">public/</span> ARE being deployed.</p>
+
+  <h2>1. Deployment Pipeline Test</h2>
+  <div class="card" id="deploy-test">
+    <p>This file lives at <span class="mono">public/debug.html</span> and is served as-is (no Vite build needed).</p>
+    <p style="margin-top:0.5rem">
+      <span class="pass">PASS</span> — If you're reading this, the Famous.ai platform IS deploying static files.
+    </p>
+    <p style="margin-top:0.5rem">
+      The question is: is the <strong>Vite JS build</strong> also being re-run, or is it serving a cached <span class="mono">dist/</span> folder?
+    </p>
+  </div>
+
+  <h2>2. JS Bundle Check</h2>
+  <div class="card">
+    <p>Click below to check which JS bundle the browser is loading:</p>
+    <button onclick="checkJSBundle()">Check JS Bundle Hash</button>
+    <pre id="js-bundle-result">Click the button above...</pre>
+  </div>
+
+  <h2>3. Service Worker Status</h2>
+  <div class="card">
+    <button onclick="checkSW()">Check Service Workers</button>
+    <button class="danger" onclick="nukeSW()">Unregister ALL Service Workers</button>
+    <button class="danger" onclick="nukeCaches()">Delete ALL Caches</button>
+    <pre id="sw-result">Click a button above...</pre>
+  </div>
+
+  <h2>4. Nuclear Cache Clear</h2>
+  <div class="card">
+    <p>This will unregister all service workers, delete all caches, clear localStorage, and force reload:</p>
+    <button class="danger" onclick="nuclearClear()">NUCLEAR CLEAR (unregister SW + delete caches + reload)</button>
+    <pre id="nuclear-result"></pre>
+  </div>
+
+  <h2>5. Manual Verification</h2>
+  <div class="card">
+    <p>After nuclear clear, go to the main site and check the browser console for:</p>
+    <pre>[SWOR] === APP LOADED v2.6 === built 2026-03-08T18:05:00Z</pre>
+    <p style="margin-top:0.5rem">If that log does NOT appear, the Vite build is stale and the Famous.ai platform is serving old JS.</p>
+    <p style="margin-top:0.5rem"><strong>Solution:</strong> Export the code and deploy to Vercel yourself. See the instructions below.</p>
+  </div>
+
+  <h2>6. Self-Deployment Instructions</h2>
+  <div class="card">
+    <p><strong>The Famous.ai hosting platform is not rebuilding the JS bundle.</strong> To deploy yourself:</p>
+    <ol style="margin: 1rem 0 0 1.5rem;">
+      <li>Use Famous.ai's export/download feature to get a ZIP of the source code</li>
+      <li>Unzip and push to GitHub: <span class="mono">github.com/UnstoppableRugby/SWOR-repository</span></li>
+      <li>Import into Vercel → Framework: Vite → Build: <span class="mono">npm run build</span> → Output: <span class="mono">dist</span></li>
+      <li>Set env vars: <span class="mono">VITE_database_URL</span> and <span class="mono">VITE_database_ANON_KEY</span></li>
+      <li>Add domain: <span class="mono">swor.rugby</span></li>
+    </ol>
+    <p style="margin-top:1rem">See <span class="mono">EXPORT_GUIDE.md</span> and <span class="mono">DEPLOYMENT.md</span> in the project root for full instructions.</p>
+  </div>
+
+  <script>
+    async function checkJSBundle() {
+      const el = document.getElementById('js-bundle-result');
+      try {
+        const resp = await fetch('/', { cache: 'no-store' });
+        const html = await resp.text();
+        const matches = html.match(/src="\/assets\/(index-[^"]+\.js)"/g) || 
+                        html.match(/src="\/assets\/([^"]+\.js)"/g) ||
+                        html.match(/index-[A-Za-z0-9]+\.js/g);
+        if (matches && matches.length > 0) {
+          el.textContent = 'JS bundles found in index.html:\n\n' + matches.join('\n') + 
+            '\n\nIf the hash is still "DdgX0oUu", the build is STALE.\n' +
+            'A fresh build would produce a DIFFERENT hash.';
+        } else {
+          el.textContent = 'Could not find JS bundle references in index.html.\nFull HTML length: ' + html.length + ' chars';
+        }
+      } catch (err) {
+        el.textContent = 'Error fetching index.html: ' + err.message;
+      }
+    }
+
+    async function checkSW() {
+      const el = document.getElementById('sw-result');
+      if (!('serviceWorker' in navigator)) {
+        el.textContent = 'Service Workers not supported in this browser.';
+        return;
+      }
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length === 0) {
+          el.textContent = 'No service workers registered.';
+          return;
+        }
+        let result = registrations.length + ' service worker(s) found:\n\n';
+        registrations.forEach((reg, i) => {
+          result += `SW #${i + 1}:\n`;
+          result += `  Scope: ${reg.scope}\n`;
+          result += `  Active: ${reg.active ? reg.active.state : 'none'}\n`;
+          result += `  Waiting: ${reg.waiting ? reg.waiting.state : 'none'}\n`;
+          result += `  Installing: ${reg.installing ? reg.installing.state : 'none'}\n\n`;
+        });
+        
+        // Also check caches
+        const cacheNames = await caches.keys();
+        result += `\nCaches (${cacheNames.length}):\n`;
+        for (const name of cacheNames) {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          result += `  ${name}: ${keys.length} entries\n`;
+          keys.forEach(k => {
+            result += `    - ${new URL(k.url).pathname}\n`;
+          });
+        }
+        
+        el.textContent = result;
+      } catch (err) {
+        el.textContent = 'Error checking SW: ' + err.message;
+      }
+    }
+
+    async function nukeSW() {
+      const el = document.getElementById('sw-result');
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        let count = 0;
+        for (const reg of registrations) {
+          await reg.unregister();
+          count++;
+        }
+        el.textContent = `Unregistered ${count} service worker(s). Refresh the page to verify.`;
+      } catch (err) {
+        el.textContent = 'Error unregistering SW: ' + err.message;
+      }
+    }
+
+    async function nukeCaches() {
+      const el = document.getElementById('sw-result');
+      try {
+        const names = await caches.keys();
+        let count = 0;
+        for (const name of names) {
+          await caches.delete(name);
+          count++;
+        }
+        el.textContent = `Deleted ${count} cache(s). Refresh the page to verify.`;
+      } catch (err) {
+        el.textContent = 'Error deleting caches: ' + err.message;
+      }
+    }
+
+    async function nuclearClear() {
+      const el = document.getElementById('nuclear-result');
+      let log = '';
+
+      // 1. Unregister all SWs
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) { await reg.unregister(); }
+        log += `Unregistered ${regs.length} service worker(s)\n`;
+      } catch (e) { log += 'SW unregister error: ' + e.message + '\n'; }
+
+      // 2. Delete all caches
+      try {
+        const names = await caches.keys();
+        for (const name of names) { await caches.delete(name); }
+        log += `Deleted ${names.length} cache(s)\n`;
+      } catch (e) { log += 'Cache delete error: ' + e.message + '\n'; }
+
+      // 3. Clear SWOR localStorage items
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('swor_') || key.startsWith('sb-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        log += `Cleared ${keysToRemove.length} localStorage key(s)\n`;
+      } catch (e) { log += 'localStorage clear error: ' + e.message + '\n'; }
+
+      log += '\nDone! Redirecting to homepage in 2 seconds...';
+      el.textContent = log;
+
+      // 4. Redirect to main site with cache-bust
+      setTimeout(() => {
+        window.location.href = '/?cache_bust=' + Date.now();
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

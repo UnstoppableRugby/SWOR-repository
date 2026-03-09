@@ -98,6 +98,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
     const demoUser = localStorage.getItem('swor_demo_user');
     if (demoUser) {
       const parsedUser = JSON.parse(demoUser);
+      
+      // Migration: existing demo users may have a legacy non-UUID id
+      // (e.g. 'demo-alun@adesignbranding.co.za'). Upgrade to a proper UUID
+      // so edge functions (swor-profile, swor-contributions) accept the id.
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (parsedUser.id && !uuidRegex.test(parsedUser.id)) {
+        const legacyId = parsedUser.id;
+        parsedUser.id = crypto.randomUUID();
+        localStorage.setItem('swor_demo_user', JSON.stringify(parsedUser));
+        console.log('[AuthModal] Migrated demo user ID from legacy format to UUID', {
+          legacyId,
+          newId: parsedUser.id,
+          email: parsedUser.email,
+        });
+      }
+      
       setUser(parsedUser);
       onAuthChange(parsedUser);
       // Set profile from demo user metadata (don't query database)
@@ -117,8 +133,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
   };
 
 
+
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    const { data } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+
     if (data) {
       setProfile(data);
       setFullName(data.full_name || '');
@@ -142,8 +160,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
   const handleDemoSignIn = () => {
     if (!enteredEmailIsGlobalSteward || !globalStewardInfo) return;
     
+    // BUG FIX: Generate a proper UUID for demo users so edge functions
+    // (swor-profile, swor-contributions) don't reject the non-UUID id.
+    // Reuse existing UUID if same email was previously signed in.
+    let demoId: string;
+    const existingDemoStr = localStorage.getItem('swor_demo_user');
+    if (existingDemoStr) {
+      try {
+        const existingDemo = JSON.parse(existingDemoStr);
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (existingDemo.email === globalStewardInfo.email && uuidRegex.test(existingDemo.id)) {
+          demoId = existingDemo.id;
+        } else {
+          demoId = crypto.randomUUID();
+        }
+      } catch {
+        demoId = crypto.randomUUID();
+      }
+    } else {
+      demoId = crypto.randomUUID();
+    }
+    
     const demoUser = {
-      id: `demo-${globalStewardInfo.email}`,
+      id: demoId,
       email: globalStewardInfo.email,
       user_metadata: {
         full_name: globalStewardInfo.name,
@@ -172,16 +211,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
   };
 
 
+
+
   // Supabase built-in OTP fallback — uses Supabase's own email infrastructure
+  // PKCE flow: redirects to ROOT URL where AppContext.processAuthAtRoot() handles the ?code= param.
+  // Previously redirected to /auth/callback, but Famous.ai hosting doesn't support SPA fallback
+  // routing, so /auth/callback returned 404. Redirecting to / always works because the server
+  // serves index.html for the root path.
   const trySupabaseOtpFallback = async (targetEmail: string): Promise<boolean> => {
     try {
       console.log('[AuthModal] Trying Supabase built-in OTP fallback for:', targetEmail);
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: targetEmail,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/`,
         },
       });
+
       if (otpError) {
         console.error('[AuthModal] Supabase OTP fallback failed:', otpError.message);
         return false;
@@ -193,6 +239,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
       return false;
     }
   };
+
 
   // Auto-retry for account owner via Supabase OTP (their email works with Supabase's own sender)
   const handleAccountOwnerRetry = async () => {
@@ -253,7 +300,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
         body: {
           action: 'send_magic_link',
           email: normalizedEmail,
-          redirect_url: window.location.origin
+          redirect_url: window.location.origin,
+          // Signal to edge function: use root URL for callback instead of /auth/callback
+          callback_path: '/',
         }
       });
 
@@ -261,7 +310,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
       // fnError only occurs on true network/invocation failures
       if (fnError) {
         console.error('[AuthModal] Edge function invocation error:', fnError);
-        // Network error — try Supabase OTP fallback directly
         const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
         if (fallbackOk) {
           setView('magic-link-sent');
@@ -269,10 +317,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
           setError('Unable to reach the sign-in service. Please check your connection and try again.');
         }
       } else if (data && data.success) {
-        // Custom magic link sent successfully
         setView('magic-link-sent');
       } else if (data && !data.success) {
-        // Application-level error from edge function
         const errorCode = data.error || '';
         const detail = data.detail || '';
 
@@ -282,27 +328,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
           errorCode === 'domain_not_verified' ||
           errorCode === 'test_mode_restricted'
         ) {
-          // Domain verification issue — specific handling
           console.log('[AuthModal] Domain issue (' + errorCode + '), checking account owner...');
-          
           if (normalizedEmail === RESEND_ACCOUNT_OWNER_EMAIL.toLowerCase()) {
-            // Account owner: auto-retry via Supabase OTP (their email should work)
             console.log('[AuthModal] Account owner detected, auto-retrying via Supabase OTP...');
             const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
             if (fallbackOk) {
               setView('magic-link-sent');
             } else {
-              // Even OTP failed for account owner — show domain setup with retry option
               showDomainSetupIssue(errorCode);
             }
           } else {
-            // Not account owner — try Supabase OTP first
             console.log('[AuthModal] Non-account-owner, trying Supabase OTP fallback...');
             const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
             if (fallbackOk) {
               setView('magic-link-sent');
             } else {
-              // Both methods failed — show domain setup guidance
               showDomainSetupIssue(errorCode);
             }
           }
@@ -311,7 +351,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
           errorCode === 'send_failed' ||
           errorCode === 'no_api_key'
         ) {
-          // Other email delivery failures — try Supabase OTP then show domain setup
           console.log('[AuthModal] Email delivery failed (' + errorCode + '), trying Supabase OTP fallback...');
           const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
           if (fallbackOk) {
@@ -325,7 +364,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
           setError(detail || 'Something went wrong. Please try again.');
         }
       } else {
-        // Unexpected response shape — try fallback
         console.warn('[AuthModal] Unexpected response shape:', data);
         const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
         if (fallbackOk) {
@@ -336,7 +374,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
       }
     } catch (err: any) {
       console.error('[AuthModal] Exception:', err);
-      // Last resort — try Supabase OTP
       const fallbackOk = await trySupabaseOtpFallback(normalizedEmail);
       if (fallbackOk) {
         setView('magic-link-sent');
@@ -347,6 +384,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
 
     setLoading(false);
   };
+
+
 
 
 
@@ -395,7 +434,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
       club_affiliation: clubAffiliation,
       bio,
       updated_at: new Date().toISOString()
-    }).eq('id', user.id);
+    }).eq('user_id', user.id);
+
 
     if (error) {
       setError(error.message);
@@ -424,7 +464,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
       secondary_steward: secondarySteward,
       steward_permission: stewardPermission,
       updated_at: new Date().toISOString()
-    }).eq('id', user.id);
+    }).eq('user_id', user.id);
+
 
     if (error) {
       setError(error.message);
@@ -455,7 +496,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthChange, in
     const { error } = await supabase.from('profiles').update({
       legacy_mode_enabled: legacyModeEnabled,
       legacy_mode_updated_at: new Date().toISOString()
-    }).eq('id', user.id);
+    }).eq('user_id', user.id);
+
 
     if (error) {
       setError(error.message);

@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
+
 import { toast } from '@/components/ui/use-toast';
 import { 
   isGlobalSteward as checkIsGlobalSteward, 
@@ -18,11 +20,21 @@ import {
   canRoleViewVisibility,
 } from '@/config/governance';
 
+// ═══════════════════════════════════════════════════════════════
+// DEPLOYMENT MARKER v2.7 — 2026-03-08T19:09:00Z
+// If this doesn't appear in the console, the build is stale.
+// ═══════════════════════════════════════════════════════════════
+console.log('[SWOR] === APP LOADED v2.7 === built 2026-03-08T19:09:00Z', new Date().toISOString());
+
+
+
 // Re-export governance types for convenience
 export type { Visibility, Status, SiteRole, StewardPermission };
 
 // Legacy type alias for backwards compatibility
 export type VisibilityLevel = Visibility;
+
+
 
 // User profile with stewardship settings
 interface UserProfile {
@@ -117,6 +129,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Flag: true while processAuthAtRoot is running — prevents onAuthStateChange from
+  // racing against us and double-setting user state.
+  const authProcessingRef = useRef(false);
+
 
   const toggleSidebar = () => {
     setSidebarOpen(prev => !prev);
@@ -133,8 +149,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+
+        .maybeSingle();
       
       if (error) {
         console.error('Error fetching profile:', error);
@@ -304,97 +321,217 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   }, []);
 
-  // Initialize auth state
-  // Initialize auth state
-  useEffect(() => {
-    const initAuth = async () => {
-      setIsLoading(true);
-      
-      // Check for magic link auth_token in URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const authToken = urlParams.get('auth_token');
-      
-      if (authToken) {
-        // Clean URL immediately
-        window.history.replaceState({}, '', window.location.pathname);
-        
-        try {
-          const { data, error: fnError } = await supabase.functions.invoke('swor-auth', {
-            body: { action: 'verify_token', token: authToken }
-          });
-          
-          if (!fnError && data?.success && data.user) {
-            // Store session
-            localStorage.setItem('swor_session_token', data.session_token);
-            localStorage.setItem('swor_auth_user', JSON.stringify(data.user));
-            // Remove any demo user
-            localStorage.removeItem('swor_demo_user');
-            
-            const authUser = {
-              id: data.user.id,
-              email: data.user.email,
-              user_metadata: { full_name: data.user.full_name },
-            };
-            setUser(authUser);
-            setProfile({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: data.user.full_name || '',
-              user_type: data.user.user_type || 'fan',
-              country: data.user.country,
-              club_affiliation: data.user.club_affiliation,
-              bio: data.user.bio,
-            });
-            setIsLoading(false);
-            return;
-          } else {
-            // Verification returned but failed — token may be expired, already used, or invalid
-            const reason = data?.error || fnError?.message || 'unknown';
-            console.error('[SWOR] Magic link verification failed:', reason);
-            
-            if (reason.toLowerCase().includes('expired')) {
-              toast({
-                title: 'Link expired',
-                description: 'This link has expired. Please request a new one.',
-                variant: 'destructive',
-              });
-            } else if (reason.toLowerCase().includes('already') || reason.toLowerCase().includes('used')) {
-              toast({
-                title: 'Link already used',
-                description: 'This link has already been used. Please request a new one if you need to sign in again.',
-                variant: 'destructive',
-              });
-            } else {
-              toast({
-                title: 'Sign-in link invalid',
-                description: 'This sign-in link is no longer valid. Please request a new one.',
-                variant: 'destructive',
-              });
-            }
+  // ─────────────────────────────────────────────────────────────
+  // processAuthAtRoot()  — v2.5 rewrite
+  // ─────────────────────────────────────────────────────────────
+  // Reads auth parameters directly from window.location.search.
+  // Called FIRST during init — before demo-user check, before
+  // getSession(), before onAuthStateChange can interfere.
+  // Returns true if auth params were found (regardless of success).
+  //
+  // ENTIRE body is wrapped in try/catch so a crash here can never
+  // fail silently.
+  // ─────────────────────────────────────────────────────────────
+  async function processAuthAtRoot(): Promise<boolean> {
+    try {
+      console.log('[SWOR] processAuthAtRoot ENTERED');
+
+      const params = new URLSearchParams(window.location.search);
+      const token_hash = params.get('token_hash');
+      const type = params.get('type');
+      const code = params.get('code');
+      const auth_token = params.get('auth_token');
+
+      console.log('[SWOR] processAuthAtRoot — parsed params:', {
+        code: code ? code.substring(0, 12) + '...' : null,
+        token_hash: token_hash ? token_hash.substring(0, 12) + '...' : null,
+        type,
+        auth_token: auth_token ? auth_token.substring(0, 12) + '...' : null,
+      });
+
+      // Quick exit — no auth params in URL
+      if (!code && !token_hash && !auth_token) {
+        console.log('[SWOR] processAuthAtRoot — no auth params found, returning false');
+        return false;
+      }
+
+      // Clear any stale demo user from localStorage so onAuthStateChange
+      // won't short-circuit when it fires after verifyOtp succeeds.
+      localStorage.removeItem('swor_demo_user');
+
+      // ── PKCE code exchange ──
+      if (code) {
+        console.log('[SWOR] Found code param, exchanging for session...');
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.error('[SWOR] exchangeCodeForSession FAILED:', error.message, error);
+        } else {
+          console.log('[SWOR] Code exchange success:', data.user?.email);
+          if (data.session?.user) {
+            setUser(data.session.user);
+            const profileData = await fetchProfile(data.session.user.id);
+            if (profileData) setProfile(profileData);
           }
-        } catch (err) {
-          console.error('[SWOR] Magic link verification failed:', err);
-          toast({
-            title: 'Verification failed',
-            description: 'We couldn\u2019t verify your sign-in link. Please check your connection and request a new one.',
-            variant: 'destructive',
+        }
+        window.history.replaceState({}, '', '/');
+        return true;
+      }
+
+      // ── Token hash verification (magic link from email) ──
+      if (token_hash && type) {
+        console.log('[SWOR] Found token_hash, calling verifyOtp...');
+        console.log('[SWOR] verifyOtp params:', { token_hash: token_hash.substring(0, 12) + '...', type });
+
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: type as any,
+        });
+
+        if (error) {
+          console.error('[SWOR] verifyOtp FAILED:', error.message, error);
+        } else {
+          console.log('[SWOR] verifyOtp SUCCESS, user:', data.user?.email);
+          const verifiedUser = data?.session?.user || data?.user;
+          if (verifiedUser) {
+            setUser(verifiedUser);
+            const profileData = await fetchProfile(verifiedUser.id);
+            if (profileData) setProfile(profileData);
+            console.log('[SWOR] Auth complete — user set, URL cleaned, profile loaded.');
+          }
+        }
+        window.history.replaceState({}, '', '/');
+        return true;
+      }
+
+      // token_hash without type — try magiclink as default
+      if (token_hash) {
+        console.log('[SWOR] Found token_hash WITHOUT type param, defaulting to magiclink...');
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: 'magiclink',
+        });
+        if (error) {
+          console.error('[SWOR] verifyOtp (default magiclink) FAILED:', error.message, error);
+        } else {
+          console.log('[SWOR] verifyOtp (default magiclink) SUCCESS, user:', data.user?.email);
+          const verifiedUser = data?.session?.user || data?.user;
+          if (verifiedUser) {
+            setUser(verifiedUser);
+            const profileData = await fetchProfile(verifiedUser.id);
+            if (profileData) setProfile(profileData);
+          }
+        }
+        window.history.replaceState({}, '', '/');
+        return true;
+      }
+
+      // ── Custom auth_token (legacy swor-auth edge function) ──
+      if (auth_token) {
+        console.log('[SWOR] Found auth_token, verifying via edge function...');
+        const { data, error: fnError } = await invokeEdgeFunction('swor-auth', {
+          action: 'verify_token',
+          token: auth_token,
+        }, 15000);
+
+        if (!fnError && data?.success && data.user) {
+          console.log('[SWOR] Custom token verified for:', data.user.email);
+          localStorage.setItem('swor_session_token', data.session_token);
+          localStorage.setItem('swor_auth_user', JSON.stringify(data.user));
+          const authUser = {
+            id: data.user.id,
+            email: data.user.email,
+            user_metadata: { full_name: data.user.full_name },
+          };
+          setUser(authUser);
+          setProfile({
+            id: data.user.id,
+            email: data.user.email,
+            full_name: data.user.full_name || '',
+            user_type: data.user.user_type || 'fan',
+            country: data.user.country,
+            club_affiliation: data.user.club_affiliation,
+            bio: data.user.bio,
           });
+        } else {
+          if (fnError?.message?.includes('timed out') || fnError?.message?.includes('Failed to invoke')) {
+            console.warn('[SWOR] swor-auth unreachable, checking for existing Supabase session...');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              console.log('[SWOR] Found existing Supabase session for:', session.user.email);
+              setUser(session.user);
+              const profileData = await fetchProfile(session.user.id);
+              if (profileData) setProfile(profileData);
+            }
+          } else {
+            console.error('[SWOR] Custom token verification failed:', fnError?.message || data?.error);
+          }
         }
 
+        window.history.replaceState({}, '', '/');
+        return true;
       }
-      
-      // Check for existing session token — validate server-side before trusting
+
+      return false;
+    } catch (e) {
+      console.error('[SWOR] processAuthAtRoot CRASHED:', e);
+      // Still try to clean the URL even on crash
+      try { window.history.replaceState({}, '', '/'); } catch (_) {}
+      return false;
+    }
+  }
+
+
+
+
+  // ─────────────────────────────────────────────────────────────
+  // Initialize auth state
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    console.log('[SWOR] initAuth useEffect fired. URL:', window.location.href);
+
+    const initAuth = async () => {
+      setIsLoading(true);
+
+      // ── Step 0: Log the full URL so we can debug in production ──
+      console.log('[SWOR] initAuth starting. search:', window.location.search, 'hash:', window.location.hash);
+
+      // ── Step 1: Process auth params FIRST ──
+      // This MUST run before anything else — before demo user check,
+      // before getSession(), before onAuthStateChange can interfere.
+      authProcessingRef.current = true;
+      console.log('[SWOR] initAuth calling processAuthAtRoot now...');
+      try {
+        const handledAuth = await processAuthAtRoot();
+        console.log('[SWOR] processAuthAtRoot returned:', handledAuth);
+        if (handledAuth) {
+          console.log('[SWOR] processAuthAtRoot handled auth params. Done.');
+          authProcessingRef.current = false;
+          setIsLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('[SWOR] processAuthAtRoot threw an unexpected error:', err);
+      }
+      authProcessingRef.current = false;
+
+
+      // ── Step 2: PKCE / implicit flow cleanup (hash fragments) ──
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log('[SWOR] Detected hash fragment, letting Supabase client process it...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.history.replaceState({}, '', window.location.pathname + window.location.search);
+      }
+
+      // ── Step 3: Check for existing custom session token ──
       const sessionToken = localStorage.getItem('swor_session_token');
       const storedUser = localStorage.getItem('swor_auth_user');
       if (sessionToken && storedUser) {
         try {
-          // Validate the session token against the server
-          const { data: sessionData, error: sessionError } = await supabase.functions.invoke('swor-auth', {
-            body: { action: 'validate_session', session_token: sessionToken }
-          });
+          const { data: sessionData, error: sessionError } = await invokeEdgeFunction('swor-auth', {
+            action: 'validate_session', session_token: sessionToken
+          }, 10000);
 
           if (!sessionError && sessionData?.success && sessionData.user) {
-            // Session is still valid — use fresh profile data from server
             const validatedUser = sessionData.user;
             const authUser = {
               id: validatedUser.id,
@@ -414,7 +551,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsLoading(false);
             return;
           } else {
-            // Session validation failed — token expired, revoked, or invalid
             const reason = sessionData?.error || sessionError?.message || 'unknown';
             console.warn('[SWOR] Stored session invalid, clearing:', reason);
             localStorage.removeItem('swor_session_token');
@@ -427,64 +563,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 variant: 'destructive',
               });
             }
-            // For other failures (invalid_session, profile_not_found, etc.)
-            // we silently clear and fall through — no toast needed since the
-            // user didn't actively trigger this; they'll just see the signed-out state.
           }
         } catch (err) {
-          // Network error or edge function unreachable — clear stored session
-          // to avoid trusting an unverifiable token
           console.error('[SWOR] Session validation request failed:', err);
           localStorage.removeItem('swor_session_token');
           localStorage.removeItem('swor_auth_user');
         }
       }
 
-      
-      // Check for demo user in localStorage
+      // ── Step 4: Check for demo user in localStorage ──
       const hasDemoUser = checkDemoUser();
-      
+
       if (!hasDemoUser) {
-        // Get current Supabase session
+        // ── Step 5: Check for Supabase session (persisted from earlier login) ──
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
+          console.log('[SWOR] Found existing Supabase session for:', session.user.email);
           setUser(session.user);
           const profileData = await fetchProfile(session.user.id);
           if (profileData) {
             setProfile(profileData);
           }
-          
+
           if (checkIsGlobalSteward(session.user.email)) {
             console.log('[SWOR] Global steward signed in:', session.user.email);
           }
         }
       }
-      
+
       setIsLoading(false);
     };
 
     initAuth();
 
-
-
-    // Listen for auth changes from Supabase
+    // ── Listen for auth changes from Supabase ──
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('[SWOR] onAuthStateChange:', event, session?.user?.email || 'no user');
+
+        // If processAuthAtRoot is currently running, skip — it will set user itself.
+        if (authProcessingRef.current) {
+          console.log('[SWOR] onAuthStateChange skipped — processAuthAtRoot is running.');
+          return;
+        }
+
         // Don't override demo user with Supabase auth events
         const demoUserStr = localStorage.getItem('swor_demo_user');
         if (demoUserStr) {
-          return; // Demo user takes precedence
+          console.log('[SWOR] onAuthStateChange skipped — demo user active.');
+          return;
         }
-        
-        if (event === 'SIGNED_IN' && session?.user) {
+
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           setUser(session.user);
           const profileData = await fetchProfile(session.user.id);
           if (profileData) {
             setProfile(profileData);
           }
-          
-          // Log if user is a global steward
+
+          if (event === 'SIGNED_IN') {
+            localStorage.removeItem('swor_session_token');
+            localStorage.removeItem('swor_auth_user');
+          }
+
           if (checkIsGlobalSteward(session.user.email)) {
             console.log('[SWOR] Global steward signed in:', session.user.email);
           }
@@ -512,13 +654,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.error('Error parsing demo user from storage event:', err);
           }
         } else {
-          // Demo user was removed
           setUser(null);
           setProfile(null);
         }
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
@@ -526,6 +667,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [checkDemoUser]);
+
+
 
   return (
     <AppContext.Provider

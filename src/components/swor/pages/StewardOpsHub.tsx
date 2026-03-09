@@ -257,7 +257,7 @@ const StewardOpsHub: React.FC<StewardOpsHubProps> = ({ onBack, onNavigate }) => 
           setUserId(session.user.id);
           const email = session.user.email?.toLowerCase() || '';
           setUserEmail(email);
-          const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('user_id', session.user.id).single();
+          const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('user_id', session.user.id).maybeSingle();
           const roleIsSteward = profile?.role === 'steward' || profile?.role === 'admin';
           setIsSteward(roleIsSteward);
           setIsGlobalSteward(roleIsSteward || GLOBAL_STEWARD_EMAILS.includes(email));

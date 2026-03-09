@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ArrowLeft, User, Save, Eye, BookOpen, Shield, HelpCircle, Upload, PenLine, Settings, Camera, X, Check, Loader2, Image as ImageIcon, AlertCircle, Globe, Users, Heart, Lock, EyeOff, Send, MessageSquare, FileText, Clock, Undo2, CheckCircle, Calendar } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
-import { supabase } from '@/lib/supabase';
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
+
 import ProfileGuidance from '../ProfileGuidance';
 import OnboardingReassurance from '../OnboardingReassurance';
 import ProfileSections from '../ProfileSections';
@@ -157,6 +158,11 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedDataRef = useRef<string>('');
   const validationDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // BUG FIX: Track profile_id in a ref to prevent race condition where
+  // two autosaves fire before React state update from first INSERT completes,
+  // causing duplicate INSERT attempts.
+  const profileIdRef = useRef<string | undefined>(undefined);
+
   
   // PATCH F.2: Refs for focus management and screen reader announcements
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -283,15 +289,66 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
       }
       
       try {
-        const { data, error } = await supabase.functions.invoke('swor-profile', {
-          body: {
-            action: 'get_profile',
-            payload: { user_id: user.id }
-          }
-        });
+        // Try edge function first with timeout, then fallback to direct DB query
+        const { data, error } = await invokeEdgeFunction('swor-profile', {
+          action: 'get_profile',
+          payload: { user_id: user.id }
+        }, 12000);
         
         if (error) {
-          console.error('Failed to load profile:', error);
+          console.warn('[ProfileBuilder] Edge function failed, trying direct DB fallback:', error.message);
+          
+          // Fallback: query individual_profiles table directly
+          // BUG FIX: was querying 'profiles' (wrong table) — must use 'individual_profiles'
+          try {
+            const { data: dbProfile, error: dbError } = await supabase
+              .from('individual_profiles')
+              .select('*')
+              .eq('user_id', user.id)
+
+              .maybeSingle();
+
+            if (!dbError && dbProfile) {
+              setProfileData({
+                id: dbProfile.id,
+                full_name: dbProfile.full_name || '',
+                known_as: dbProfile.known_as || '',
+                title: dbProfile.title || '',
+                introduction: dbProfile.introduction || '',
+                summary: dbProfile.summary || '',
+                country: dbProfile.country || '',
+                region: dbProfile.region || '',
+                era: dbProfile.era || '',
+                birth_year: dbProfile.birth_year?.toString() || '',
+                roles: dbProfile.roles || [],
+                visibility_default: dbProfile.visibility_default || 'draft',
+                status: dbProfile.status || 'draft',
+                photo_url: dbProfile.photo_url || undefined,
+                photo_alt_text: dbProfile.photo_alt_text || undefined,
+                photo_status: dbProfile.photo_status || undefined,
+                core_journey: dbProfile.core_journey || {},
+                reflections_influences: dbProfile.reflections_influences || {},
+                archive_media: dbProfile.archive_media || {},
+                connections_acknowledgements: dbProfile.connections_acknowledgements || {},
+                optional_additions: dbProfile.optional_additions || {},
+                submitted_at: dbProfile.submitted_at || undefined,
+                steward_note: dbProfile.steward_note || undefined,
+                steward_note_by: dbProfile.steward_note_by || undefined,
+                steward_note_at: dbProfile.steward_note_at || undefined
+              });
+              lastSavedDataRef.current = JSON.stringify(dbProfile);
+              if (dbProfile.updated_at) {
+                setLastSaved(new Date(dbProfile.updated_at));
+              }
+              console.log('[ProfileBuilder] Loaded profile from direct DB query');
+            } else {
+              console.log('[ProfileBuilder] No profile found in DB (new user) — showing empty form');
+            }
+          } catch (dbErr) {
+            console.error('[ProfileBuilder] Direct DB fallback also failed:', dbErr);
+            // Show empty form — user can still create a new profile
+          }
+          
           setIsLoading(false);
           return;
         }
@@ -352,6 +409,7 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
     loadProfile();
   }, [user?.id]);
 
+
   // Load archive items for the profile
   const loadArchiveItems = async (profileId: string) => {
     try {
@@ -388,14 +446,15 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
     if (autosaveTimerRef.current) {
       clearInterval(autosaveTimerRef.current);
     }
-    
     // Set up autosave every 30 seconds
+    // BUG FIX: Skip autosave for demo users (non-UUID user.id causes edge function rejection)
     autosaveTimerRef.current = setInterval(() => {
-      if (hasUnsavedChanges && user?.id && !isReadOnly) {
+      if (hasUnsavedChanges && user?.id && !isReadOnly && !user?.isDemo) {
         handleAutosave();
       }
     }, 30000);
     
+
     return () => {
       if (autosaveTimerRef.current) {
         clearInterval(autosaveTimerRef.current);
@@ -434,6 +493,13 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
   const handleAutosave = async () => {
     if (!user?.id || isSaving || isReadOnly) return;
     
+    // BUG FIX: Skip autosave for demo users — their non-UUID id (pre-fix) or
+    // ephemeral UUID causes edge function issues with the uuid column type
+    if (user?.isDemo) {
+      console.log('[ProfileBuilder] Skipping autosave for demo user');
+      return;
+    }
+    
     const currentData = JSON.stringify(profileData);
     if (currentData === lastSavedDataRef.current) return;
     
@@ -441,22 +507,43 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
     setSaveError(null);
     
     try {
-      const { data, error } = await supabase.functions.invoke('swor-profile', {
-        body: {
-          action: 'save_profile',
-          payload: {
-            profile_id: profileData.id,
-            user_id: user.id,
-            ...profileData,
-            birth_year: profileData.birth_year ? parseInt(profileData.birth_year) : null,
-            is_autosave: true
-          }
-        }
-      });
+      // BUG FIX: Use profileIdRef to prevent race condition where two autosaves
+      // fire before React state update from first INSERT completes
+      const effectiveProfileId = profileIdRef.current || profileData.id;
       
-      if (error) throw error;
+      // BUG FIX: Use invokeEdgeFunction with timeout to prevent indefinite hangs
+      const { data, error } = await invokeEdgeFunction('swor-profile', {
+        action: 'save_profile',
+        payload: {
+          profile_id: effectiveProfileId,
+          user_id: user.id,
+          full_name: profileData.full_name,
+          known_as: profileData.known_as,
+          title: profileData.title,
+          introduction: profileData.introduction,
+          summary: profileData.summary,
+          country: profileData.country,
+          region: profileData.region,
+          era: profileData.era,
+          birth_year: profileData.birth_year ? parseInt(profileData.birth_year) : null,
+          roles: profileData.roles,
+          visibility_default: profileData.visibility_default,
+          core_journey: profileData.core_journey,
+          reflections_influences: profileData.reflections_influences,
+          archive_media: profileData.archive_media,
+          connections_acknowledgements: profileData.connections_acknowledgements,
+          optional_additions: profileData.optional_additions,
+          is_autosave: true
+        }
+      }, 15000);
+      
+      if (error) throw new Error(error.message || 'Autosave failed');
       
       if (data?.success) {
+        // BUG FIX: Update ref immediately (sync) to prevent race condition
+        if (data.profile_id && !profileIdRef.current) {
+          profileIdRef.current = data.profile_id;
+        }
         if (data.profile_id && !profileData.id) {
           setProfileData(prev => ({ ...prev, id: data.profile_id }));
         }
@@ -464,13 +551,14 @@ const IndividualProfileBuilder: React.FC<IndividualProfileBuilderProps> = ({
         setLastSaved(new Date());
         setHasUnsavedChanges(false);
       }
-    } catch (err) {
-      console.error('Autosave failed:', err);
+    } catch (err: any) {
+      console.error('[ProfileBuilder] Autosave failed:', err?.message || err);
       setSaveError('Autosave failed. Your changes are preserved locally.');
     } finally {
       setIsSaving(false);
     }
   };
+
 
   const handleSave = async () => {
     if (!user?.id || isReadOnly) return;

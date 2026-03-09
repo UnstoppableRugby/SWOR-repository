@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Clock, FileText, Image, File, CheckCircle, XCircle, AlertCircle, Loader2, Shield, Eye, EyeOff, Users, Lock, RefreshCw, Sparkles, Search, MessageSquare, Type, PenLine, User, Building2, UserX, Ban, UserPlus, Trash2, Crown, ShieldCheck, Link2, ExternalLink, Globe, Minimize2, Video, Play, Film, RotateCcw } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
+
 import { 
   type Visibility, 
   type Status,
@@ -780,14 +781,15 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
           console.log(`[Upload] Starting upload for: ${file.name} (${file.type}, ${file.size} bytes)`);
 
           // Use direct fetch to avoid Supabase client "Response could not be cloned" issue
-          const functionUrl = 'https://lbweciluypxgmqcckfhu.databasepad.com/functions/v1/swor-file-upload';
+          const functionUrl = `${supabaseUrl}/functions/v1/swor-file-upload`;
           
           const uploadResponse = await fetch(functionUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImE5MjlmZGIzLTg5YmYtNDFlNS1iNGIxLWIwMmMwYmZkZDc3NiJ9.eyJwcm9qZWN0SWQiOiJsYndlY2lsdXlweGdtcWNja2ZodSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzE2NjkzLCJleHAiOjIwODUwNzY2OTMsImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Hz8CWkSEVa0jkT7AhydWBvt04ZUdGBgEBrA7niFaqp4`
+              'Authorization': `Bearer ${supabaseKey}`
             },
+
             body: JSON.stringify({
               fileName: file.name,
               fileType: file.type,
@@ -1128,7 +1130,7 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       }
       
       // Use direct fetch with Authorization header
-      const functionUrl = 'https://lbweciluypxgmqcckfhu.databasepad.com/functions/v1/swor-file-upload';
+      const functionUrl = `${supabaseUrl}/functions/v1/swor-file-upload`;
       
       // Build request headers
       const headers: Record<string, string> = {
@@ -1137,7 +1139,8 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       
       // For demo users, use anon key; for real users, use access token
       if (isDemoUser) {
-        headers['Authorization'] = `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImE5MjlmZGIzLTg5YmYtNDFlNS1iNGIxLWIwMmMwYmZkZDc3NiJ9.eyJwcm9qZWN0SWQiOiJsYndlY2lsdXlweGdtcWNja2ZodSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzE2NjkzLCJleHAiOjIwODUwNzY2OTMsImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Hz8CWkSEVa0jkT7AhydWBvt04ZUdGBgEBrA7niFaqp4`;
+        headers['Authorization'] = `Bearer ${supabaseKey}`;
+
       } else {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
@@ -1314,7 +1317,8 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       console.log(`[Reject] Rejection note: ${rejectionNote || '(none)'}`);
       
       // Use direct fetch with Authorization header
-      const functionUrl = 'https://lbweciluypxgmqcckfhu.databasepad.com/functions/v1/swor-file-upload';
+      const functionUrl = `${supabaseUrl}/functions/v1/swor-file-upload`;
+
       
       // Build request headers
       const headers: Record<string, string> = {
@@ -1323,7 +1327,8 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       
       // For demo users, use anon key; for real users, use access token
       if (isDemoUser) {
-        headers['Authorization'] = `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImE5MjlmZGIzLTg5YmYtNDFlNS1iNGIxLWIwMmMwYmZkZDc3NiJ9.eyJwcm9qZWN0SWQiOiJsYndlY2lsdXlweGdtcWNja2ZodSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzE2NjkzLCJleHAiOjIwODUwNzY2OTMsImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Hz8CWkSEVa0jkT7AhydWBvt04ZUdGBgEBrA7niFaqp4`;
+        headers['Authorization'] = `Bearer ${supabaseKey}`;
+
       } else {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
@@ -1507,7 +1512,8 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       console.log(`[Reset] Reset note: ${resetNote || '(none)'}`);
       
       // Use direct fetch with Authorization header
-      const functionUrl = 'https://lbweciluypxgmqcckfhu.databasepad.com/functions/v1/swor-file-upload';
+      const functionUrl = `${supabaseUrl}/functions/v1/swor-file-upload`;
+
       
       // Build request headers
       const headers: Record<string, string> = {
@@ -1516,7 +1522,8 @@ const StewardDashboard: React.FC<StewardDashboardProps> = ({
       
       // For demo users, use anon key; for real users, use access token
       if (isDemoUser) {
-        headers['Authorization'] = `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImE5MjlmZGIzLTg5YmYtNDFlNS1iNGIxLWIwMmMwYmZkZDc3NiJ9.eyJwcm9qZWN0SWQiOiJsYndlY2lsdXlweGdtcWNja2ZodSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzE2NjkzLCJleHAiOjIwODUwNzY2OTMsImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Hz8CWkSEVa0jkT7AhydWBvt04ZUdGBgEBrA7niFaqp4`;
+        headers['Authorization'] = `Bearer ${supabaseKey}`;
+
       } else {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
