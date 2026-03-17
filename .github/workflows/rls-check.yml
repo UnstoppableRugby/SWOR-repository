@@ -1,0 +1,39 @@
+name: RLS Policy Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rls-test:
+    name: Run RLS Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run swor-rls-test edge function
+        id: rls
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"run_tests"}')
+          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" | python3 -m json.tool
+
+      - name: Assert 100% pass rate
+        run: |
+          PASS_RATE=$(echo '${{ steps.rls.outputs.response }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['summary']['pass_rate'])")
+          VULNS=$(echo '${{ steps.rls.outputs.response }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['summary']['vulnerabilities'])")
+          echo "Pass rate: $PASS_RATE"
+          echo "Vulnerabilities: $VULNS"
+          if [ "$PASS_RATE" != "100%" ]; then
+            echo "❌ RLS tests did not pass 100% — blocking deploy"
+            exit 1
+          fi
+          if [ "$VULNS" != "0" ]; then
+            echo "🚨 VULNERABILITIES DETECTED — blocking deploy"
+            exit 1
+          fi
+          echo "✅ RLS check passed — safe to deploy"
