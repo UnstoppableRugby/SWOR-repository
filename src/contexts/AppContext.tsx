@@ -100,6 +100,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoading, setIsLoading] = useState(true);
 
   const bootingRef = useRef(false);
+  // FIX 1: Prevents two concurrent calls to ensureProfile from racing each other
+  const ensuringProfileRef = useRef(false);
 
   const toggleSidebar = () => {
     setSidebarOpen(prev => !prev);
@@ -150,7 +152,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // FIX 1: ensureProfile is now guarded against concurrent duplicate calls
   const ensureProfile = useCallback(async () => {
+    if (ensuringProfileRef.current) {
+      console.log('[SWOR] ensureprofile already in flight — skipping duplicate call');
+      return true;
+    }
+
+    ensuringProfileRef.current = true;
+
     try {
       const { error } = await invokeEdgeFunction(
         'swor-auth',
@@ -167,6 +177,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.warn('[SWOR] ensureprofile request failed:', err);
       return false;
+    } finally {
+      ensuringProfileRef.current = false;
     }
   }, []);
 
@@ -391,7 +403,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [ensureProfile, fetchProfile]);
 
+  // FIX 2: Skip URL param processing when AuthCallback.tsx is already handling it
   const consumeAuthParams = useCallback(async () => {
+    if (window.location.pathname === '/auth/callback') return false;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const tokenHash = params.get('token_hash');
