@@ -1,6 +1,6 @@
-// SWOR Service Worker v5 — 2026-03-08T19:09:00Z
-// CHANGED: bumped cache version to v5, network-first for JS, aggressive cache clearing
-const CACHE_NAME = 'swor-cache-v5';
+// SWOR Service Worker v6 — 2026-03-18T17:00:00Z
+// CHANGED: fixed undefined Response bug in API catch handler, bumped to v6
+const CACHE_NAME = 'swor-cache-v6';
 
 const OFFLINE_URL = '/offline.html';
 
@@ -13,7 +13,7 @@ const SHELL_ASSETS = [
 
 // Install event - cache essential assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker v5');
+  console.log('[SW] Installing service worker v6');
 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -27,7 +27,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - DELETE ALL old caches aggressively
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker v5');
+  console.log('[SW] Activating service worker v6');
 
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -108,7 +108,9 @@ self.addEventListener('fetch', (event) => {
           return caches.match('/')
             .then((cachedIndex) => {
               if (cachedIndex) return cachedIndex;
-              return caches.match(OFFLINE_URL);
+              return caches.match(OFFLINE_URL).then((offlinePage) => {
+                return offlinePage || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+              });
             });
         })
     );
@@ -131,7 +133,7 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           // Only use cache as offline fallback for JS
           return caches.match(request).then((cached) => {
-            return cached || new Response('', { status: 404 });
+            return cached || new Response('', { status: 404, statusText: 'Not Found' });
           });
         })
     );
@@ -163,7 +165,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         }).catch(() => {
-          return new Response('', { status: 404 });
+          return new Response('', { status: 404, statusText: 'Not Found' });
         });
       })
     );
@@ -171,10 +173,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   // ── API requests and other resources — network only ──
+  // FIXED: catch must return a valid Response, never undefined
   event.respondWith(
     fetch(request)
       .then((response) => response)
-      .catch(() => caches.match(request))
+      .catch(() => {
+        return caches.match(request).then((cached) => {
+          return cached || new Response('', { status: 503, statusText: 'Service Unavailable' });
+        });
+      })
   );
 });
 
