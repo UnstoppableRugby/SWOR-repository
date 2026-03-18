@@ -1,10 +1,16 @@
-
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-console.log('[SWOR] main.tsx loaded — build v2.7 — ' + new Date().toISOString());
+// These are injected by vite.config.ts at build time — changing them forces a new bundle hash
+declare const __BUILD_TIMESTAMP__: string;
+declare const __BUILD_VERSION__: string;
 
+const BUILD_VERSION = __BUILD_VERSION__;
+const BUILD_TIMESTAMP = __BUILD_TIMESTAMP__;
+
+console.log(`[SWOR] === APP LOADED v3.0 === ${BUILD_TIMESTAMP}`);
+console.log(`[SWOR] main.tsx loaded — build ${BUILD_VERSION} — ${BUILD_TIMESTAMP}`);
 
 // Register service worker with aggressive update strategy
 if ('serviceWorker' in navigator) {
