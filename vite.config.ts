@@ -86,11 +86,18 @@ function spaFallbackPlugin(): Plugin {
 
 // https://vitejs.dev/config/
 
+// Build timestamp generated at build time — changes on every build,
+// guaranteeing new Vite chunk hashes and busting all caches.
+const BUILD_TIMESTAMP = new Date().toISOString();
+const BUILD_DATE = BUILD_TIMESTAMP.slice(0, 10).replace(/-/g, '');
+const BUILD_TIME = BUILD_TIMESTAMP.slice(11, 16).replace(':', '');
+const BUILD_VERSION_FULL = `v2.7-${BUILD_DATE}-${BUILD_TIME}`;
+
 export default defineConfig(({ mode }) => ({
   // Inject build timestamp into code — forces new JS hashes on every build
   define: {
-    __BUILD_TIMESTAMP__: JSON.stringify('2026-03-08T19:09:00Z'),
-    __BUILD_VERSION__: JSON.stringify('v2.7'),
+    __BUILD_TIMESTAMP__: JSON.stringify(BUILD_TIMESTAMP),
+    __BUILD_VERSION__: JSON.stringify(BUILD_VERSION_FULL),
   },
   server: {
     host: "::",
@@ -106,14 +113,11 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Force new chunk hashes by disabling source maps caching
     sourcemap: false,
     rollupOptions: {
       output: {
-        // Add build timestamp to chunk names to guarantee new hashes
         manualChunks: undefined,
       },
     },
   },
 }));
-
